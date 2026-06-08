@@ -1,5 +1,7 @@
 package com.vaani.core.pipeline
 
+import com.vaani.core.conversation.ConversationMemory
+import com.vaani.core.conversation.FollowUpResolver
 import com.vaani.core.model.AppAction
 import com.vaani.core.model.AssistantResponse
 import com.vaani.core.model.ExecutionMode
@@ -20,11 +22,18 @@ import com.vaani.core.skill.SkillRegistry
  */
 class AssistantPipeline(
     private val skills: List<Skill> = SkillRegistry.default(),
+    private val followUpResolver: FollowUpResolver = FollowUpResolver(),
+    private val memory: ConversationMemory = ConversationMemory(),
 ) {
 
     fun handle(transcribedText: String): AssistantResponse {
+        // Expand anaphoric follow-ups ("అదే అమ్మకి పంపు") against the last turn first.
+        val text = followUpResolver.resolve(transcribedText, memory.recall())
         for (skill in skills) {
-            skill.handle(transcribedText)?.let { return it }
+            skill.handle(text)?.let { response ->
+                response.memory?.let(memory::remember)
+                return response
+            }
         }
         return AssistantResponse(
             action = AppAction.Unsupported("unrecognised"),

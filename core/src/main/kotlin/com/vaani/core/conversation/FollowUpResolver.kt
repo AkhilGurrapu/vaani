@@ -16,8 +16,32 @@ import com.vaani.core.model.TurnContext
 class FollowUpResolver {
 
     fun resolve(text: String, memory: TurnContext?): String {
-        TODO("GREEN (#10): expand అదే / అతనికే follow-ups against memory")
+        val body = memory?.messageBody ?: return text
+        val tokens = text.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+
+        val sameMessage = tokens.any { it == SAME_MESSAGE }
+        val samePerson = tokens.any { token -> SAME_PERSON.any { it == token } }
+
+        return when {
+            // "అదే <name>కి పంపు" — reuse the body, take the new recipient from this turn.
+            sameMessage -> {
+                val recipient = newRecipient(tokens) ?: memory.recipientName ?: return text
+                messageCommand(recipient, body)
+            }
+            // "అతనికే పంపు" — reuse both the recipient and the body.
+            samePerson && memory.recipientName != null -> messageCommand(memory.recipientName, body)
+            else -> text
+        }
     }
+
+    /** The recipient named in this follow-up: a token bearing a కి/కు postposition. */
+    private fun newRecipient(tokens: List<String>): String? = tokens.firstNotNullOfOrNull { token ->
+        if (token == SAME_MESSAGE || SAME_PERSON.contains(token)) return@firstNotNullOfOrNull null
+        POSTPOSITIONS.firstOrNull { token.endsWith(it) }?.let { token.dropLast(it.length) }
+    }
+
+    private fun messageCommand(recipient: String, body: String) =
+        "${recipient}కి వాట్సాప్ లో $body అని మెసేజ్ పంపు"
 
     private companion object {
         /** "the same [message]" — reuse the remembered body. */
