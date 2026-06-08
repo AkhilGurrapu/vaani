@@ -72,6 +72,14 @@ class SkillRegistryIntegrationTest {
     }
 
     @Test
+    fun `routes a payment to a guided upi handoff`() {
+        val r = pipeline.handle("రవికి 500 రూపాయలు పంపాలి")
+        assertTrue(r.action is AppAction.DeepLink)
+        assertTrue((r.action as AppAction.DeepLink).uri.startsWith("upi://pay"))
+        assertEquals(ExecutionMode.GUIDED_ASSIST, r.mode)
+    }
+
+    @Test
     fun `routes navigation to confirm then execute`() {
         val r = pipeline.handle("నన్ను దగ్గరలోని హాస్పిటల్ కి తీసుకెళ్ళు")
         assertTrue(r.action is AppAction.DeepLink)
