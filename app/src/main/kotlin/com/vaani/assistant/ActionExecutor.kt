@@ -20,7 +20,34 @@ class ActionExecutor(private val context: Context) {
 
     fun execute(action: AppAction): Result = when (action) {
         is AppAction.LaunchApp -> launch(action.packageName)
+        is AppAction.DeepLink -> deepLink(action)
         is AppAction.Unsupported -> Result.NothingToDo
+    }
+
+    /**
+     * Generic deep-link / intent execution — the single path every non-launch
+     * skill (dial, Maps navigation, YouTube search, …) flows through, so new
+     * skills never need a new executor branch.
+     */
+    private fun deepLink(action: AppAction.DeepLink): Result {
+        val intent = Intent(action.androidAction, Uri.parse(action.uri))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        action.packageName?.let { intent.setPackage(it) }
+        return if (intent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(intent)
+            Result.Launched
+        } else if (action.packageName != null) {
+            // Targeted app is missing — retry without the package constraint.
+            intent.setPackage(null)
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+                Result.Launched
+            } else {
+                Result.AppNotInstalled
+            }
+        } else {
+            Result.AppNotInstalled
+        }
     }
 
     private fun launch(packageName: String): Result {
