@@ -14,7 +14,33 @@ import com.vaani.core.model.AssistantResponse
 class YouTubeSearchSkill : Skill {
 
     override fun handle(text: String): AssistantResponse? {
-        TODO("GREEN (#4): detect youtube + search/play verb, extract query, emit DeepLink")
+        val tokens = text.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        val hasYouTubeTrigger = tokens.any { token ->
+            YOUTUBE_TRIGGERS.any { it.equals(token, ignoreCase = true) }
+        }
+        val hasSearchVerb = tokens.any { token ->
+            SEARCH_VERBS.any { it.equals(token, ignoreCase = true) }
+        }
+
+        if (!hasYouTubeTrigger || !hasSearchVerb) return null
+
+        val droppedTokens = YOUTUBE_TRIGGERS + SEARCH_VERBS + FILLERS
+        val query = tokens
+            .filterNot { token -> droppedTokens.any { it.equals(token, ignoreCase = true) } }
+            .joinToString(" ")
+            .trim()
+        val action = com.vaani.core.model.AppAction.DeepLink(
+            uri = RESULTS_URL + java.net.URLEncoder.encode(query, "UTF-8"),
+            teluguLabel = TELUGU_LABEL,
+            androidAction = "android.intent.action.VIEW",
+            packageName = null,
+        )
+
+        return AssistantResponse(
+            action = action,
+            mode = com.vaani.core.model.ExecutionMode.DIRECT_EXECUTE,
+            teluguSpeech = "యూట్యూబ్ లో $query వెతుకుతున్నాను",
+        )
     }
 
     private companion object {
