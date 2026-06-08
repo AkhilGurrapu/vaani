@@ -15,29 +15,37 @@ import com.vaani.assistant.databinding.ActivityMainBinding
 import com.vaani.core.model.AppAction
 import com.vaani.core.model.ExecutionMode
 import com.vaani.core.pipeline.AssistantPipeline
+import com.vaani.core.skill.SkillRegistry
 import java.util.Locale
 
 /**
- * The Telugu-first home screen and platform glue for the "open app" slice.
+ * The Telugu-first home screen and platform glue for Vaani.
  *
  *   mic tap -> Telugu speech-to-text (te-IN)
- *           -> [AssistantPipeline] understands + routes (pure core)
+ *           -> [AssistantPipeline] understands + routes across all skills (pure core)
  *           -> Telugu text-to-speech announces the action
- *           -> [ActionExecutor] performs it (direct-execute for low-risk).
+ *           -> [ActionExecutor] performs it (per the safety mode).
+ *
+ * The pipeline is built from [SkillRegistry] with an [AndroidContactResolver] so the
+ * call skill can resolve device contacts; every other skill is pure.
  */
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var tts: TextToSpeech
     private lateinit var executor: ActionExecutor
-
-    private val pipeline = AssistantPipeline()
+    private lateinit var pipeline: AssistantPipeline
 
     private val teluguLocale = Locale("te", "IN")
 
-    private val micPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) startListening() else toast(getString(R.string.mic_permission_needed))
+    /** Vaani needs the mic to listen and (optionally) contacts to place calls. */
+    private val permissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            if (grants[Manifest.permission.RECORD_AUDIO] == true) {
+                startListening()
+            } else {
+                toast(getString(R.string.mic_permission_needed))
+            }
         }
 
     private val speechLauncher =
@@ -61,6 +69,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         executor = ActionExecutor(this)
         tts = TextToSpeech(this, this)
+        pipeline = AssistantPipeline(SkillRegistry.default(AndroidContactResolver(this)))
 
         binding.micButton.setOnClickListener { ensurePermissionThenListen() }
     }
@@ -70,9 +79,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun ensurePermissionThenListen() {
-        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+        val micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
-        if (granted) startListening() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        if (micGranted) {
+            startListening()
+        } else {
+            permissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.READ_CONTACTS))
+        }
     }
 
     private fun startListening() {
