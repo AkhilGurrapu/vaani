@@ -64,11 +64,27 @@ sealed interface AppAction {
 }
 
 /**
+ * The salient slots a skill understood this turn, retained briefly so the next
+ * utterance can refer back ("అదే అమ్మకి పంపు" = send the same to Amma). Any field
+ * may be null when the turn didn't establish it.
+ */
+data class TurnContext(
+    val recipientName: String? = null,
+    val messageBody: String? = null,
+    val appContext: String? = null,
+)
+
+/**
  * The full output of the assistant pipeline for one utterance:
  * the action to perform, how to perform it, and what to say back in Telugu.
+ *
+ * [memory] is the context this turn established (recipient, message body, …), or
+ * null when the turn established nothing worth remembering. The pipeline retains it
+ * to resolve follow-up references.
  */
 data class AssistantResponse(
     val action: AppAction,
     val mode: ExecutionMode,
     val teluguSpeech: String,
+    val memory: TurnContext? = null,
 )
