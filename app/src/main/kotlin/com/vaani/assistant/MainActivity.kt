@@ -3,6 +3,7 @@ package com.vaani.assistant
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
@@ -48,19 +49,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
         }
 
-    private val speechLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val spoken = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-                ?.trim()
-                .orEmpty()
-            if (spoken.isEmpty()) {
-                binding.statusText.text = getString(R.string.didnt_understand)
-            } else {
-                handleUtterance(spoken)
-            }
-        }
+    /** In-app recognizer so listening stays inside Vaani's Telugu UI (no Google popup). */
+    private var speechRecognizer: SpeechRecognizer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,8 +60,28 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         executor = ActionExecutor(this)
         tts = TextToSpeech(this, this)
         pipeline = AssistantPipeline(SkillRegistry.default(AndroidContactResolver(this)))
+        if (SpeechRecognizer.isRecognitionAvailable(this)) {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+                setRecognitionListener(recognitionListener())
+            }
+        }
 
         binding.micButton.setOnClickListener { ensurePermissionThenListen() }
+
+        // Debug affordance: type a Telugu command to drive the pipeline without the mic
+        // (useful on emulators that have no microphone audio).
+        binding.debugSend.setOnClickListener {
+            val command = binding.debugInput.text?.toString()?.trim().orEmpty()
+            if (command.isNotEmpty()) {
+                binding.debugInput.text?.clear()
+                handleUtterance(command)
+            }
+        }
+
+        // Debug/testing entry point: `adb shell am start … --es cmd "<telugu command>"`.
+        intent?.getStringExtra(EXTRA_COMMAND)?.takeIf { it.isNotBlank() }?.let { command ->
+            binding.root.post { handleUtterance(command) }
+        }
     }
 
     override fun onInit(status: Int) {
@@ -94,7 +104,35 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
         binding.statusText.text = getString(R.string.listening)
-        speechLauncher.launch(buildRecognizeIntent(teluguLocale))
+        speechRecognizer?.startListening(buildRecognizeIntent(teluguLocale))
+    }
+
+    /** Drives the pipeline from in-app recognition results, no system speech UI. */
+    private fun recognitionListener() = object : RecognitionListener {
+        override fun onResults(results: Bundle?) {
+            val text = results
+                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?.firstOrNull()
+                ?.trim()
+                .orEmpty()
+            if (text.isEmpty()) {
+                binding.statusText.text = getString(R.string.didnt_understand)
+            } else {
+                handleUtterance(text)
+            }
+        }
+
+        override fun onError(error: Int) {
+            binding.statusText.text = getString(R.string.didnt_understand)
+        }
+
+        override fun onReadyForSpeech(params: Bundle?) {}
+        override fun onBeginningOfSpeech() {}
+        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onBufferReceived(buffer: ByteArray?) {}
+        override fun onEndOfSpeech() {}
+        override fun onPartialResults(partialResults: Bundle?) {}
+        override fun onEvent(eventType: Int, params: Bundle?) {}
     }
 
     /**
@@ -141,9 +179,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
 
     override fun onDestroy() {
+        speechRecognizer?.destroy()
         tts.stop()
         tts.shutdown()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val EXTRA_COMMAND = "cmd"
     }
     /** Builds a Telugu speech-recognition intent for the given [locale]. */
     private fun buildRecognizeIntent(locale: Locale) =
