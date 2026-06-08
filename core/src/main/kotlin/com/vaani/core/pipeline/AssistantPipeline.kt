@@ -2,7 +2,9 @@ package com.vaani.core.pipeline
 
 import com.vaani.core.intent.IntentParser
 import com.vaani.core.intent.RuleBasedIntentParser
+import com.vaani.core.model.AppAction
 import com.vaani.core.model.AssistantResponse
+import com.vaani.core.model.ExecutionMode
 import com.vaani.core.policy.PolicyEngine
 import com.vaani.core.response.TeluguResponder
 import com.vaani.core.router.ActionRouter
@@ -25,6 +27,15 @@ class AssistantPipeline(
 ) {
 
     fun handle(transcribedText: String): AssistantResponse {
-        TODO("GREEN: orchestrate parse -> policy + route -> response")
+        val intent = intentParser.parse(transcribedText)
+        val action = actionRouter.route(intent)
+        // An unsupported action is never directly executed — always guide the user.
+        val mode = when (action) {
+            is AppAction.Unsupported -> ExecutionMode.GUIDED_ASSIST
+            else -> policyEngine.decide(intent)
+        }
+        val teluguSpeech = responder.speechFor(action)
+
+        return AssistantResponse(action, mode, teluguSpeech)
     }
 }

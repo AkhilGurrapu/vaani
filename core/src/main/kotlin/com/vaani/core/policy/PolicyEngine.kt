@@ -11,6 +11,9 @@ import com.vaani.core.model.ParsedIntent
 class PolicyEngine {
 
     fun decide(intent: ParsedIntent): ExecutionMode {
-        TODO("GREEN: map intent type to execution mode")
+        return when (intent) {
+            is ParsedIntent.OpenApp -> ExecutionMode.DIRECT_EXECUTE
+            is ParsedIntent.Unknown -> ExecutionMode.GUIDED_ASSIST
+        }
     }
 }
