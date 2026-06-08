@@ -16,7 +16,11 @@ import org.junit.Test
 class SkillRegistryIntegrationTest {
 
     private val resolver = ContactResolver { name ->
-        if (name.trim() == "అమ్మ") Contact("అమ్మ", "+919876543210") else null
+        when (name.trim()) {
+            "అమ్మ" -> Contact("అమ్మ", "+919876543210")
+            "రవి" -> Contact("రవి", "+918765432109")
+            else -> null
+        }
     }
     private val pipeline = AssistantPipeline(SkillRegistry.default(resolver))
 
@@ -48,6 +52,23 @@ class SkillRegistryIntegrationTest {
         assertTrue(r.action is AppAction.DeepLink)
         assertTrue((r.action as AppAction.DeepLink).uri.startsWith("https://www.youtube.com/results"))
         assertEquals(ExecutionMode.DIRECT_EXECUTE, r.mode)
+    }
+
+    @Test
+    fun `routes a whatsapp message to a confirm prefilled prepare`() {
+        val r = pipeline.handle("రవికి వాట్సాప్ లో నేను వస్తున్నా అని మెసేజ్ పంపు")
+        assertTrue(r.action is AppAction.DeepLink)
+        val link = r.action as AppAction.DeepLink
+        assertTrue(link.uri.startsWith("https://wa.me/918765432109?text="))
+        assertEquals("com.whatsapp", link.packageName)
+        assertEquals(ExecutionMode.CONFIRM_THEN_EXECUTE, r.mode)
+    }
+
+    @Test
+    fun `routes whatsapp open to launch, not to a message`() {
+        val r = pipeline.handle("వాట్సాప్ తెరువు")
+        assertTrue(r.action is AppAction.LaunchApp)
+        assertEquals("com.whatsapp", (r.action as AppAction.LaunchApp).packageName)
     }
 
     @Test

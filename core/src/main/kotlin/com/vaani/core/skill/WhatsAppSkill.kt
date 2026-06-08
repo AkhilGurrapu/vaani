@@ -19,7 +19,72 @@ import com.vaani.core.model.AssistantResponse
 class WhatsAppSkill(private val contacts: ContactResolver) : Skill {
 
     override fun handle(text: String): AssistantResponse? {
-        TODO("GREEN (#6): detect whatsapp+send, extract recipient+body, resolve, emit CONFIRM wa.me DeepLink or guided")
+        val tokens = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val hasWhatsAppTrigger = tokens.any { token ->
+            WHATSAPP_TRIGGERS.any { trigger -> token.equals(trigger, ignoreCase = true) }
+        }
+        val hasSendMarker = tokens.any { token ->
+            SEND_MARKERS.any { marker -> token.equals(marker, ignoreCase = true) }
+        }
+        if (!hasWhatsAppTrigger || !hasSendMarker) return null
+
+        val recipientName = tokens.withIndex().firstNotNullOfOrNull { (index, token) ->
+            val standalonePostposition = POSTPOSITIONS.any { postposition ->
+                token.equals(postposition, ignoreCase = true)
+            }
+            if (standalonePostposition && index > 0) {
+                tokens[index - 1]
+            } else {
+                val gluedPostposition = POSTPOSITIONS.firstOrNull { postposition -> token.endsWith(postposition) }
+                val isWhatsAppTrigger = WHATSAPP_TRIGGERS.any { trigger ->
+                    token.equals(trigger, ignoreCase = true)
+                }
+                if (gluedPostposition != null && !isWhatsAppTrigger) {
+                    token.dropLast(gluedPostposition.length)
+                } else {
+                    null
+                }
+            }
+        } ?: ""
+
+        val aniIndex = tokens.indexOfFirst { token -> token == QUOTATIVE }
+        val whatsappTriggerIndex = tokens.indexOfFirst { token ->
+            WHATSAPP_TRIGGERS.any { trigger -> token.equals(trigger, ignoreCase = true) }
+        }
+        val loIndex = tokens.indexOfFirst { token -> token == "లో" }.takeIf { it >= 0 } ?: whatsappTriggerIndex
+        val bodyEndIndex = if (aniIndex >= 0) {
+            aniIndex
+        } else {
+            tokens.withIndex().firstOrNull { (index, token) ->
+                index > loIndex && SEND_MARKERS.any { marker -> token.equals(marker, ignoreCase = true) }
+            }?.index ?: tokens.size
+        }
+        val body = if (bodyEndIndex > loIndex) {
+            tokens.subList(loIndex + 1, bodyEndIndex).joinToString(" ").trim()
+        } else {
+            ""
+        }
+
+        val contact = contacts.resolve(recipientName)
+        return if (contact != null && body.isNotBlank()) {
+            val digits = contact.phoneNumber.filter { it.isDigit() }
+            AssistantResponse(
+                action = com.vaani.core.model.AppAction.DeepLink(
+                    uri = WA_ME_URL + digits + "?text=" + java.net.URLEncoder.encode(body, "UTF-8"),
+                    teluguLabel = TELUGU_LABEL,
+                    androidAction = "android.intent.action.VIEW",
+                    packageName = WHATSAPP_PACKAGE,
+                ),
+                mode = com.vaani.core.model.ExecutionMode.CONFIRM_THEN_EXECUTE,
+                teluguSpeech = contact.displayName + " కి '" + body + "' అని వాట్సాప్ మెసేజ్ సిద్ధం చేస్తున్నాను",
+            )
+        } else {
+            AssistantResponse(
+                action = com.vaani.core.model.AppAction.Unsupported("whatsapp_recipient_or_message_unclear"),
+                mode = com.vaani.core.model.ExecutionMode.GUIDED_ASSIST,
+                teluguSpeech = "ఎవరికి, ఏ మెసేజ్ పంపాలో స్పష్టంగా చెప్పండి",
+            )
+        }
     }
 
     private companion object {
