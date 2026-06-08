@@ -77,6 +77,12 @@ class WhatsAppSkill(private val contacts: ContactResolver) : Skill {
                 ),
                 mode = com.vaani.core.model.ExecutionMode.CONFIRM_THEN_EXECUTE,
                 teluguSpeech = contact.displayName + " కి '" + body + "' అని వాట్సాప్ మెసేజ్ సిద్ధం చేస్తున్నాను",
+                // Publish what we understood so a follow-up ("అదే …కి పంపు") can reuse it.
+                memory = com.vaani.core.model.TurnContext(
+                    recipientName = contact.displayName,
+                    messageBody = body,
+                    appContext = "whatsapp",
+                ),
             )
         } else {
             AssistantResponse(
