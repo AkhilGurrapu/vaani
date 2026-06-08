@@ -1,7 +1,9 @@
 package com.vaani.core.skill
 
 import com.vaani.core.contact.ContactResolver
+import com.vaani.core.model.AppAction
 import com.vaani.core.model.AssistantResponse
+import com.vaani.core.model.ExecutionMode
 
 /**
  * "Call a contact by voice" skill (slice #3).
@@ -16,7 +18,44 @@ import com.vaani.core.model.AssistantResponse
 class CallSkill(private val contacts: ContactResolver) : Skill {
 
     override fun handle(text: String): AssistantResponse? {
-        TODO("GREEN (#3): detect call trigger, extract+resolve person, emit CONFIRM dial DeepLink or guided not-found")
+        val tokens = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val hasCallTrigger = tokens.any { token ->
+            CALL_TRIGGERS.any { trigger -> token.equals(trigger, ignoreCase = true) }
+        }
+        if (!hasCallTrigger) return null
+
+        val personName = tokens
+            .filterNot { token ->
+                CALL_TRIGGERS.any { trigger -> token.equals(trigger, ignoreCase = true) } ||
+                    FILLERS.any { filler -> token.equals(filler, ignoreCase = true) }
+            }
+            .map { token ->
+                POSTPOSITIONS.firstOrNull { postposition -> token.endsWith(postposition) }
+                    ?.let { postposition -> token.dropLast(postposition.length) }
+                    ?: token
+            }
+            .joinToString(" ")
+            .trim()
+
+        val contact = contacts.resolve(personName)
+        return if (contact != null) {
+            AssistantResponse(
+                action = AppAction.DeepLink(
+                    uri = "tel:" + contact.phoneNumber,
+                    teluguLabel = contact.displayName,
+                    androidAction = DIAL_ACTION,
+                    packageName = null,
+                ),
+                mode = ExecutionMode.CONFIRM_THEN_EXECUTE,
+                teluguSpeech = contact.displayName + " కి కాల్ చేస్తున్నారా?",
+            )
+        } else {
+            AssistantResponse(
+                action = AppAction.Unsupported("contact_not_found"),
+                mode = ExecutionMode.GUIDED_ASSIST,
+                teluguSpeech = personName + " అనే కాంటాక్ట్ దొరకలేదు",
+            )
+        }
     }
 
     private companion object {
