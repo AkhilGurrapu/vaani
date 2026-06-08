@@ -17,7 +17,42 @@ import com.vaani.core.model.AssistantResponse
 class PaymentSkill : Skill {
 
     override fun handle(text: String): AssistantResponse? {
-        TODO("GREEN (#7): detect amount + pay/currency marker, extract payee+amount, emit GUIDED upi:// DeepLink")
+        val tokens = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val amountIndex = tokens.indexOfFirst { token -> token.matches(Regex("\\d+")) }
+        if (amountIndex < 0) return null
+
+        val amount = tokens[amountIndex]
+        val hasPayMarker = tokens.any { token ->
+            PAY_MARKERS.any { marker -> token.equals(marker, ignoreCase = true) }
+        }
+        if (!hasPayMarker) return null
+
+        fun isAmountToken(index: Int) = index == amountIndex
+        fun isPayMarker(token: String) = PAY_MARKERS.any { marker -> token.equals(marker, ignoreCase = true) }
+
+        val payee = tokens.withIndex().firstNotNullOfOrNull { (index, token) ->
+            if (isAmountToken(index) || isPayMarker(token)) {
+                null
+            } else if (POSTPOSITIONS.any { postposition -> token.equals(postposition, ignoreCase = true) }) {
+                tokens.getOrNull(index - 1)
+                    ?.takeUnless { previous -> isPayMarker(previous) || previous == amount }
+            } else {
+                POSTPOSITIONS.firstOrNull { postposition -> token.endsWith(postposition) }
+                    ?.let { postposition -> token.dropLast(postposition.length) }
+                    ?.takeIf { it.isNotBlank() }
+            }
+        } ?: return null
+
+        val action = com.vaani.core.model.AppAction.DeepLink(
+            uri = UPI_URI + "?pn=" + payee + "&am=" + amount + "&cu=INR",
+            teluguLabel = TELUGU_LABEL,
+            androidAction = "android.intent.action.VIEW",
+            packageName = null,
+        )
+        val mode = com.vaani.core.model.ExecutionMode.GUIDED_ASSIST
+        val teluguSpeech = payee + " కి " + amount + " రూపాయలు చెల్లించాలా? చివరి నిర్ధారణ చెల్లింపు యాప్‌లో చేయండి"
+
+        return AssistantResponse(action, mode, teluguSpeech)
     }
 
     private companion object {

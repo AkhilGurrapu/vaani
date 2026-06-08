@@ -23,6 +23,7 @@ object SkillRegistry {
     ): List<Skill> = listOf(
         OpenAppSkill(),
         WhatsAppSkill(contactResolver),
+        PaymentSkill(),
         CallSkill(contactResolver),
         YouTubeSearchSkill(),
         NavigateSkill(),
