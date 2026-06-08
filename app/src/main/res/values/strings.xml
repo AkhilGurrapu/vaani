@@ -11,4 +11,8 @@
     <string name="speech_not_available">వాయిస్ గుర్తింపు అందుబాటులో లేదు</string>
     <string name="didnt_understand">అర్థం కాలేదు. మళ్ళీ చెప్పండి.</string>
     <string name="app_not_installed">ఈ యాప్ ఫోన్‌లో లేదు</string>
+
+    <!-- Debug command input -->
+    <string name="debug_hint">కమాండ్ టైప్ చేయండి (డీబగ్)</string>
+    <string name="debug_send">▶</string>
 </resources>
