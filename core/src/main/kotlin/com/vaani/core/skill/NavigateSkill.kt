@@ -14,7 +14,26 @@ import com.vaani.core.model.AssistantResponse
 class NavigateSkill : Skill {
 
     override fun handle(text: String): AssistantResponse? {
-        TODO("GREEN (#5): detect navigate trigger, extract destination, emit CONFIRM DeepLink")
+        if (NAVIGATE_TRIGGERS.none { text.contains(it, ignoreCase = true) }) return null
+
+        val ignoredWords = NAVIGATE_TRIGGERS + FILLERS
+        val destination = text
+            .trim()
+            .split(Regex("\\s+"))
+            .filterNot { word -> ignoredWords.any { ignored -> word.equals(ignored, ignoreCase = true) } }
+            .joinToString(" ")
+            .trim()
+
+        val action = com.vaani.core.model.AppAction.DeepLink(
+            uri = NAVIGATION_URI + java.net.URLEncoder.encode(destination, "UTF-8"),
+            teluguLabel = TELUGU_LABEL,
+            androidAction = "android.intent.action.VIEW",
+            packageName = MAPS_PACKAGE,
+        )
+        val mode = com.vaani.core.model.ExecutionMode.CONFIRM_THEN_EXECUTE
+        val teluguSpeech = "$destination కి దారి చూపిస్తున్నాను"
+
+        return AssistantResponse(action, mode, teluguSpeech)
     }
 
     private companion object {
