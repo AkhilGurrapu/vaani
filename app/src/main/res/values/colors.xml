@@ -1,0 +1,6 @@
+<resources>
+    <color name="vaani_saffron">#FF6D00</color>
+    <color name="vaani_deep">#1A1A2E</color>
+    <color name="vaani_surface">#FFFFFF</color>
+    <color name="vaani_on_surface">#1A1A2E</color>
+</resources>
