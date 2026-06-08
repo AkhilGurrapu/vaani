@@ -10,6 +10,9 @@ class TeluguResponder {
 
     /** e.g. LaunchApp("…","యూట్యూబ్") -> "యూట్యూబ్ తెరుస్తున్నాను" (opening YouTube). */
     fun speechFor(action: AppAction): String {
-        TODO("GREEN: produce Telugu confirmation per action type")
+        return when (action) {
+            is AppAction.LaunchApp -> "${action.teluguLabel} తెరుస్తున్నాను"
+            is AppAction.Unsupported -> "క్షమించండి, ఈ పని ప్రస్తుతం చేయలేను"
+        }
     }
 }

@@ -15,7 +15,35 @@ import com.vaani.core.model.ParsedIntent
 class RuleBasedIntentParser : IntentParser {
 
     override fun parse(text: String): ParsedIntent {
-        TODO("GREEN: implement rule-based open-app parsing")
+        val trimmedText = text.trim()
+        if (trimmedText.isBlank()) {
+            return ParsedIntent.Unknown(text)
+        }
+
+        val tokens = trimmedText.split(Regex("\\s+"))
+        val hasOpenTrigger = tokens.any { token ->
+            val normalizedToken = token.trim().trim('.', ',', '?', '!').lowercase()
+            OPEN_TRIGGERS.any { trigger -> trigger.lowercase() == normalizedToken }
+        }
+
+        if (!hasOpenTrigger) {
+            return ParsedIntent.Unknown(text)
+        }
+
+        val spokenAppName = tokens
+            .filterNot { token ->
+                val normalizedToken = token.trim().trim('.', ',', '?', '!').lowercase()
+                OPEN_TRIGGERS.any { trigger -> trigger.lowercase() == normalizedToken } ||
+                    FILLERS.any { filler -> filler.lowercase() == normalizedToken }
+            }
+            .joinToString(" ")
+            .trim()
+
+        return if (spokenAppName.isBlank()) {
+            ParsedIntent.Unknown(text)
+        } else {
+            ParsedIntent.OpenApp(spokenAppName, text)
+        }
     }
 
     private companion object {

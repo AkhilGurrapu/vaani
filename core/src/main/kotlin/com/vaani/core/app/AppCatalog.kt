@@ -20,7 +20,14 @@ data class KnownApp(
 class AppCatalog(private val apps: List<KnownApp> = DEFAULT_APPS) {
 
     fun resolve(spokenAppName: String): KnownApp? {
-        TODO("GREEN: normalise spokenAppName and match against aliases")
+        val normalizedAppName = spokenAppName.trim().lowercase()
+        if (normalizedAppName.isBlank()) {
+            return null
+        }
+
+        return apps.firstOrNull { app ->
+            app.aliases.any { alias -> alias.trim().lowercase() == normalizedAppName }
+        }
     }
 
     companion object {

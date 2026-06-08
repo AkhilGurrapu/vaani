@@ -15,6 +15,16 @@ import com.vaani.core.model.ParsedIntent
 class ActionRouter(private val appCatalog: AppCatalog = AppCatalog()) {
 
     fun route(intent: ParsedIntent): AppAction {
-        TODO("GREEN: resolve OpenApp via catalog; Unknown -> Unsupported")
+        return when (intent) {
+            is ParsedIntent.OpenApp -> {
+                val app = appCatalog.resolve(intent.spokenAppName)
+                if (app == null) {
+                    AppAction.Unsupported("unsupported_app")
+                } else {
+                    AppAction.LaunchApp(app.packageName, app.teluguLabel)
+                }
+            }
+            is ParsedIntent.Unknown -> AppAction.Unsupported("unsupported_intent")
+        }
     }
 }
