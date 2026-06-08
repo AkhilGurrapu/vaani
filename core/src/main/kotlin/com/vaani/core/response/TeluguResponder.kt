@@ -12,6 +12,7 @@ class TeluguResponder {
     fun speechFor(action: AppAction): String {
         return when (action) {
             is AppAction.LaunchApp -> "${action.teluguLabel} తెరుస్తున్నాను"
+            is AppAction.DeepLink -> "${action.teluguLabel} తెరుస్తున్నాను"
             is AppAction.Unsupported -> "క్షమించండి, ఈ పని ప్రస్తుతం చేయలేను"
         }
     }

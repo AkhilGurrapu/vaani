@@ -8,6 +8,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.vaani.assistant.databinding.ActivityMainBinding
@@ -83,7 +84,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         speechLauncher.launch(buildRecognizeIntent(teluguLocale))
     }
 
-    /** Drive the pure core pipeline, then announce + execute per the chosen mode. */
+    /**
+     * Drive the pure core pipeline, then announce + act per the safety mode.
+     * This is mode-generic: every current and future skill flows through here,
+     * so new slices add no shell code.
+     */
     private fun handleUtterance(text: String) {
         binding.statusText.text = text
         val response = pipeline.handle(text)
@@ -91,11 +96,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         speak(response.teluguSpeech)
 
         when (response.mode) {
+            // Low-risk: act immediately (e.g. open an app, search a video).
             ExecutionMode.DIRECT_EXECUTE -> runAction(response.action)
-            // Confirm / guided modes arrive with later slices; for now we just speak.
-            ExecutionMode.CONFIRM_THEN_EXECUTE,
+            // Medium-risk: confirm in Telugu first (e.g. call, start navigation).
+            ExecutionMode.CONFIRM_THEN_EXECUTE -> confirmThenRun(response.teluguSpeech, response.action)
+            // Sensitive / unrecognised: we have already spoken the guidance; do not execute.
             ExecutionMode.GUIDED_ASSIST -> Unit
         }
+    }
+
+    private fun confirmThenRun(teluguSpeech: String, action: AppAction) {
+        AlertDialog.Builder(this)
+            .setMessage(teluguSpeech)
+            .setPositiveButton("అవును") { _, _ -> runAction(action) }
+            .setNegativeButton("వద్దు", null)
+            .show()
     }
 
     private fun runAction(action: AppAction) {

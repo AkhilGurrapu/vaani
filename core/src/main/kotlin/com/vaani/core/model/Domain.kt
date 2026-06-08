@@ -46,6 +46,19 @@ sealed interface AppAction {
         val teluguLabel: String,
     ) : AppAction
 
+    /**
+     * A generic intent on a URI — the additive action that covers deep links,
+     * app links, dial (`tel:` + ACTION_DIAL), Maps navigation (`google.navigation:`),
+     * YouTube search, etc. The Android shell builds a real Intent from this spec,
+     * so new skills need no new action types or executor branches.
+     */
+    data class DeepLink(
+        val uri: String,
+        val teluguLabel: String,
+        val androidAction: String = "android.intent.action.VIEW",
+        val packageName: String? = null,
+    ) : AppAction
+
     /** No supported execution path exists; [reason] is a Telugu-facing explanation key. */
     data class Unsupported(val reason: String) : AppAction
 }

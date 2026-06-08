@@ -1,41 +1,39 @@
 package com.vaani.core.pipeline
 
-import com.vaani.core.intent.IntentParser
-import com.vaani.core.intent.RuleBasedIntentParser
 import com.vaani.core.model.AppAction
 import com.vaani.core.model.AssistantResponse
 import com.vaani.core.model.ExecutionMode
-import com.vaani.core.policy.PolicyEngine
-import com.vaani.core.response.TeluguResponder
-import com.vaani.core.router.ActionRouter
+import com.vaani.core.skill.Skill
+import com.vaani.core.skill.SkillRegistry
 
 /**
  * The end-to-end agentic core: transcribed Telugu text in, [AssistantResponse] out.
  *
- *   text -> IntentParser -> PolicyEngine (mode)
- *                        -> ActionRouter (action)
- *                        -> TeluguResponder (speech)
+ * The pipeline is a thin dispatcher over an ordered list of [Skill]s — it asks each
+ * in turn and returns the first that handles the utterance. If none do, it returns a
+ * safe [ExecutionMode.GUIDED_ASSIST] "didn't understand" response and never executes
+ * anything. All capability-specific logic lives in the skills, so this class never
+ * changes as new slices land.
  *
  * Platform layers (STT, TTS, Android Intent execution) sit on either side of this;
  * this class is pure and fully unit-testable.
  */
 class AssistantPipeline(
-    private val intentParser: IntentParser = RuleBasedIntentParser(),
-    private val policyEngine: PolicyEngine = PolicyEngine(),
-    private val actionRouter: ActionRouter = ActionRouter(),
-    private val responder: TeluguResponder = TeluguResponder(),
+    private val skills: List<Skill> = SkillRegistry.default(),
 ) {
 
     fun handle(transcribedText: String): AssistantResponse {
-        val intent = intentParser.parse(transcribedText)
-        val action = actionRouter.route(intent)
-        // An unsupported action is never directly executed — always guide the user.
-        val mode = when (action) {
-            is AppAction.Unsupported -> ExecutionMode.GUIDED_ASSIST
-            else -> policyEngine.decide(intent)
+        for (skill in skills) {
+            skill.handle(transcribedText)?.let { return it }
         }
-        val teluguSpeech = responder.speechFor(action)
+        return AssistantResponse(
+            action = AppAction.Unsupported("unrecognised"),
+            mode = ExecutionMode.GUIDED_ASSIST,
+            teluguSpeech = DID_NOT_UNDERSTAND,
+        )
+    }
 
-        return AssistantResponse(action, mode, teluguSpeech)
+    private companion object {
+        const val DID_NOT_UNDERSTAND = "క్షమించండి, అర్థం కాలేదు. మళ్ళీ చెప్పండి."
     }
 }
